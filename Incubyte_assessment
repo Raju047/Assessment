@@ -1,47 +1,75 @@
-## Key Findings from Data Exploration:
-Missing Values:
+--- To find the number of nulls in given data set
 
-CustomerID, TransactionDate, PaymentMethod, StoreType, CustomerAge, CustomerGender, and ProductName have 50,000 missing values.
-Region has 42,633 missing values.
+SELECT 
+    COUNT(*) AS TotalRows,
+    SUM(CASE WHEN TransactionID IS NULL THEN 1 ELSE 0 END) AS Missing_TransactionID,
+    SUM(CASE WHEN CustomerID IS NULL THEN 1 ELSE 0 END) AS Missing_CustomerID,
+    SUM(CASE WHEN TransactionDate IS NULL THEN 1 ELSE 0 END) AS Missing_TransactionDate,
+    SUM(CASE WHEN TransactionAmount IS NULL THEN 1 ELSE 0 END) AS Missing_TransactionAmount,
+    SUM(CASE WHEN PaymentMethod IS NULL THEN 1 ELSE 0 END) AS Missing_PaymentMethod,
+    SUM(CASE WHEN Quantity IS NULL THEN 1 ELSE 0 END) AS Missing_Quantity,
+    SUM(CASE WHEN DiscountPercent IS NULL THEN 1 ELSE 0 END) AS Missing_DiscountPercent,
+    SUM(CASE WHEN City IS NULL THEN 1 ELSE 0 END) AS Missing_City,
+    SUM(CASE WHEN StoreType IS NULL THEN 1 ELSE 0 END) AS Missing_StoreType,
+    SUM(CASE WHEN CustomerAge IS NULL THEN 1 ELSE 0 END) AS Missing_CustomerAge,
+    SUM(CASE WHEN CustomerGender IS NULL THEN 1 ELSE 0 END) AS Missing_CustomerGender,
+    SUM(CASE WHEN LoyaltyPoints IS NULL THEN 1 ELSE 0 END) AS Missing_LoyaltyPoints,
+    SUM(CASE WHEN ProductName IS NULL THEN 1 ELSE 0 END) AS Missing_ProductName,
+    SUM(CASE WHEN Region IS NULL THEN 1 ELSE 0 END) AS Missing_Region,
+    SUM(CASE WHEN Returned IS NULL THEN 1 ELSE 0 END) AS Missing_Returned,
+    SUM(CASE WHEN FeedbackScore IS NULL THEN 1 ELSE 0 END) AS Missing_FeedbackScore,
+    SUM(CASE WHEN ShippingCost IS NULL THEN 1 ELSE 0 END) AS Missing_ShippingCost,
+    SUM(CASE WHEN DeliveryTimeDays IS NULL THEN 1 ELSE 0 END) AS Missing_DeliveryTimeDays,
+    SUM(CASE WHEN IsPromotional IS NULL THEN 1 ELSE 0 END) AS Missing_IsPromotional
+FROM Assesment_sales;
 
-Transaction Analysis:
-The average transaction amount is $20,405, with a maximum of $99,996 and a minimum of -$999, suggesting possible incorrect or refund transactions.
-The average discount applied is 25%, with some transactions having a 50% discount.
+--------------------------------------------------------------------------------------------------
+---transactin date update using forwardfill with transactionId
 
-Customer Demographics:
-The average customer age is 46 years, ranging from 18 to 74 years.
-Gender information is missing for 50,000 customers.
+WITH FilledDates AS (
+    SELECT 
+        TransactionID,
+        TransactionDate,
+        LAG(TransactionDate) OVER (ORDER BY TransactionID) AS PrevTransactionDate
+    FROM Assesment_sales
+)
+UPDATE Assesment_sales
+SET TransactionDate = FilledDates.PrevTransactionDate
+FROM FilledDates
+WHERE Assesment_sales.TransactionID = FilledDates.TransactionID
+  AND Assesment_sales.TransactionDate IS NULL;
+-----------------------------------------------------------------------------------------------
+----Impute missing PaymentMethod with the mode (most frequent value).
 
-Shipping & Delivery:
-Average shipping cost is $397, with some transactions having $0.
-Delivery times range from 1 to 15 days, with an average of 5 days.
-Next, I'll generate aggregate metrics and drill-down insights before providing SQL scripts. ​​
+  DECLARE @ModePaymentMethod VARCHAR(50);
 
-Key Insights:
-Total Sales & Quantity:
-Total Revenue: $10.2 billion
-Average Transaction Value: $20,405
-Total Items Sold: 3.75 million units
+-- Calculate the mode for PaymentMethod
+SELECT TOP 1 @ModePaymentMethod = PaymentMethod
+FROM Assesment_sales
+WHERE PaymentMethod IS NOT NULL
+GROUP BY PaymentMethod
+ORDER BY COUNT(*) DESC;
 
-Sales by City:
-Top 3 cities by revenue: Kolkata ($1.03B), Ahmedabad ($1.02B), Bangalore ($1.02B)
+-- Impute missing PaymentMethod with the mode
+UPDATE Assesment_sales
+SET PaymentMethod = @ModePaymentMethod
+WHERE PaymentMethod IS NULL;
 
-Store Type Performance:
-Online vs. In-Store Sales:
-In-Store Sales: $5.08 billion
-Online Sales: $5.08 billion (Almost equal)
+select PaymentMethod from assesment_sales
+where PaymentMethod is null
 
-Top Selling Products:
-Laptop ($6.23B)
-Sofa ($3.77B)
-Other products contribute much less.
 
-Return Rate:
-49.89% of transactions resulted in returns, which is very high.
-
-Delivery Performance:
-Average delivery time is 5.2 days.
-
-Discount Impact:
-Transactions are evenly distributed across discount ranges.
-Highest sales in 30-40% discount range (~$2.05B).
+-----------------------------------------------------------------------------
+----Use forward fill to impute missing ProductName values based on the previous available value.
+WITH FilledProducts AS (
+    SELECT 
+        TransactionID,
+        ProductName,
+        LAG(ProductName) OVER (ORDER BY TransactionDate) AS PrevProductName
+    FROM Assesment_sales
+)
+UPDATE Assesment_sales
+SET ProductName = FilledProducts.PrevProductName
+FROM FilledProducts
+WHERE Assesment_sales.TransactionID = FilledProducts.TransactionID
+  AND Assesment_sales.ProductName IS NULL;
